@@ -214,7 +214,7 @@ async function initializeApp() {
 app.get('/api/get-submissions', async (req, res) => {
   try {
     // Base URL for file links (adjust as per your production environment)
-    const fileBaseUrl = `http://localhost:${port}/phdapplications/`;
+    const fileBaseUrl = `https://registerapi.jntugv.edu.in/phdapplications/`;
 
     // Query to get all scholar submissions with related data (courses, rrm details, publications)
     const [submissions] = await db.query(`
