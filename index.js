@@ -16,7 +16,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const dbConfig = {
   host: 'localhost',
   user: 'root',
-  password: 'Anil@73',
+  password: 'Jntugv@dmc23',
   multipleStatements: true
 };
 
