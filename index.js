@@ -4,7 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-
+const dotenv = require('dotenv').config();
 const app = express();
 const port = 9999;
 
@@ -18,7 +18,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const dbConfig = {
   host: 'localhost',
   user: 'root',
-  password: 'Anil@73',
+  password: 'Anil@73'|| process.env.dbPassword,
   multipleStatements: true
 };
 
@@ -223,7 +223,8 @@ async function initializeApp() {
     // API to retrieve submissions
     app.get('/api/get-submissions', async (req, res) => {
       try {
-        const fileBaseUrl = `http://localhost:9999/phdapplications/`; // Base URL for file links
+        console.log(process.env.apiIP);
+        const fileBaseUrl = `${process.env.apiIP}/phdapplications/`; // Base URL for file links
 
         const [submissions] = await db.query(`
           SELECT 
