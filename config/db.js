@@ -3,7 +3,7 @@ const dotenv = require('dotenv').config();
 const dbConfig = {
   host: 'localhost',
   user: 'root',
-  password: process.env.apiIP,
+  password: process.env.dbPassword,
   multipleStatements: true
 };
 
