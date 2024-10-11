@@ -2,7 +2,7 @@ const express = require('express');
 const { getConnection } = require('../config/db');
 const { upload } = require('../middlewares/fileUploads');
 const router = express.Router();
-
+const dotenv = require('dotenv').config();
 // Helper function to ensure value is array
 const ensureArray = (data) => Array.isArray(data) ? data : [data];
 
@@ -103,20 +103,36 @@ router.post('/submit-form', upload.fields([
     res.status(500).json({ error: 'Error submitting form' });
   }
 });
-
-// Retrieve submissions
+ 
+// API Route
 router.get('/get-submissions', async (req, res) => {
   try {
+    const DOMAIN = process.env.apiIP;
     const db = await getConnection();
     const [submissions] = await db.query(`
       SELECT 
-        s.id AS scholarId, s.scholarName, s.dateOfBirth, s.branch, s.rollNumber, s.scholarMobile, s.scholarEmail, 
-        s.supervisorName, s.supervisorMobile, s.supervisorEmail, s.coSupervisorName, s.coSupervisorMobile, 
-        s.coSupervisorEmail, s.titleOfResearch, s.areaOfResearch, s.progressFile, s.rrmApplicationFile, s.created_at,
+        s.id AS scholarId, 
+        s.scholarName, 
+        s.dateOfBirth, 
+        s.branch, 
+        s.rollNumber, 
+        s.scholarMobile, 
+        s.scholarEmail, 
+        s.supervisorName, 
+        s.supervisorMobile, 
+        s.supervisorEmail, 
+        s.coSupervisorName, 
+        s.coSupervisorMobile, 
+        s.coSupervisorEmail, 
+        s.titleOfResearch, 
+        s.areaOfResearch, 
+        CONCAT('${DOMAIN}', s.progressFile) AS progressFile, 
+        CONCAT('${DOMAIN}', s.rrmApplicationFile) AS rrmApplicationFile, 
+        s.created_at,
         (SELECT JSON_ARRAYAGG(JSON_OBJECT('course_type', c.course_type, 'course_name', c.course_name, 'year', c.year)) 
           FROM courses c WHERE c.scholar_id = s.id) AS courses,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', r.rrm_date, 'status', r.status, 'satisfaction', r.satisfaction, 'file', r.file)) 
-          FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
+        (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', r.rrm_date, 'status', r.status, 'satisfaction', r.satisfaction, 'file', CONCAT('${DOMAIN}', r.file)) 
+          ) FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
         (SELECT JSON_ARRAYAGG(JSON_OBJECT('title', p.title, 'authors', p.authors, 'journal_conference', p.journal_conference, 'free_paid', p.free_paid, 'impact_factor', p.impact_factor)) 
           FROM publications p WHERE p.scholar_id = s.id) AS publications
       FROM scholars s;
