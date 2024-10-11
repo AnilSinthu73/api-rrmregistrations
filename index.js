@@ -10,13 +10,15 @@ const port = 9999;
 
 app.use(cors());
 app.use(express.json());
+
 // Serve the 'uploads' folder statically at the '/uploads' path
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // MySQL connection configuration
 const dbConfig = {
   host: 'localhost',
   user: 'root',
-  password: 'Jntugv@dmc23',
+  password: 'Anil@73',
   multipleStatements: true
 };
 
@@ -49,7 +51,7 @@ CREATE TABLE IF NOT EXISTS scholars (
 CREATE TABLE IF NOT EXISTS courses (
   id INT AUTO_INCREMENT PRIMARY KEY,
   scholar_id INT NOT NULL,
-  course_type ENUM('Audit', 'Credit', 'Pre-PhD') NOT NULL,
+  course_type VARCHAR(255) NOT NULL,
   course_name VARCHAR(255) NOT NULL,
   year INT NOT NULL,
   FOREIGN KEY (scholar_id) REFERENCES scholars(id) ON DELETE CASCADE
@@ -61,6 +63,7 @@ CREATE TABLE IF NOT EXISTS rrm_details (
   rrm_date DATE NOT NULL,
   status TEXT NOT NULL,
   satisfaction ENUM('Satisfactory', 'Not Satisfactory') NOT NULL,
+  file VARCHAR(255),
   FOREIGN KEY (scholar_id) REFERENCES scholars(id) ON DELETE CASCADE
 );
 
@@ -79,15 +82,16 @@ CREATE TABLE IF NOT EXISTS publications (
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = 'uploads/phdapplications';
+    const uploadDir = path.join(__dirname, 'uploads', 'phdapplications');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
-    cb(null, uploadDir);
+    cb(null, uploadDir); // Save in the correct directory
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  },
+    const uniqueName = Date.now() + '-' + file.originalname.replace(/\s+/g, '_'); // Unique file name
+    cb(null, uniqueName); // Save file with the unique name
+  }
 });
 
 const upload = multer({ storage: storage });
@@ -95,32 +99,29 @@ const upload = multer({ storage: storage });
 // Initialize database and start server
 async function initializeApp() {
   try {
-    // Create connection
     const connection = await mysql.createConnection(dbConfig);
-
-    // Create database and tables
     await connection.query(createDatabaseAndTables);
     console.log('Database and tables created successfully');
-
-    // Close initial connection
     await connection.end();
 
-    // Create a new connection to the specific database
     const db = await mysql.createConnection({
       ...dbConfig,
       database: 'drdregistrations'
     });
 
-    // API endpoint to submit form data
+    // API to submit form data
     app.post('/api/submit-form', upload.fields([
       { name: 'progressFile', maxCount: 1 },
-      { name: 'rrmApplicationFile', maxCount: 1 }
+      { name: 'rrmApplicationFile', maxCount: 1 },
+      { name: 'rrmDetailsFile', maxCount: 10 } // Handle up to 10 files for RRM details
     ]), async (req, res) => {
+      console.log("Received form data:", req.body); // Debugging received data
+      console.log("Received files:", req.files); // Debugging received files
+
       const formData = req.body;
       const files = req.files;
 
       try {
-        // Start transaction
         await db.beginTransaction();
 
         // Insert scholar details
@@ -129,7 +130,7 @@ async function initializeApp() {
             scholarName, dateOfBirth, branch, rollNumber, scholarMobile, scholarEmail,
             supervisorName, supervisorMobile, supervisorEmail, coSupervisorName, coSupervisorMobile, coSupervisorEmail,
             titleOfResearch, areaOfResearch, progressFile, rrmApplicationFile
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           [
             formData.scholarName,
             formData.dateOfBirth,
@@ -153,135 +154,135 @@ async function initializeApp() {
         const scholarId = scholarResult.insertId;
 
         // Insert courses
-        // Inside your app.post('/api/submit-form', ...) handler
-
-        // Parse the JSON strings for auditCourse, creditCourse, and prePhDSubjects
-        const auditCourse = JSON.parse(formData.auditCourse);
-        const creditCourse = JSON.parse(formData.creditCourse);
-        const prePhDSubjects = JSON.parse(formData.prePhDSubjects);
-
-        // Prepare course values, filtering out any courses with empty names
         const courseValues = [
-          [scholarId, 'Audit', auditCourse.courseName, auditCourse.year],
-          [scholarId, 'Credit', creditCourse.courseName, creditCourse.year],
-          ...prePhDSubjects.map(subject => [scholarId, 'Pre-PhD', subject.courseName, subject.year])
-        ].filter(course => course[2] && course[3]); // Filter out courses with null/undefined name or year
+          ...JSON.parse(formData.auditCourse || '[]').map(course => [scholarId, 'Audit', course.courseName, course.year]),
+          ...JSON.parse(formData.creditCourse || '[]').map(course => [scholarId, 'Credit', course.courseName, course.year]),
+          ...JSON.parse(formData.prePhDSubjects || '[]').map(course => [scholarId, 'Pre-PhD', course.courseName, course.year])
+        ];
 
-        // Only insert courses if there are valid entries
         if (courseValues.length > 0) {
-          await db.query(
-            `INSERT INTO courses (scholar_id, course_type, course_name, year) VALUES ?`,
-            [courseValues]
-          );
-        } else {
-          console.log('No valid courses to insert');
+          await db.query(`INSERT INTO courses (scholar_id, course_type, course_name, year) VALUES ?`, [courseValues]);
         }
-        // Insert RRM details
-        const rrmValues = JSON.parse(formData.rrmDetails).map(rrm => [
-          scholarId, rrm.date, rrm.status, rrm.satisfaction
-        ]);
 
-        await db.query(
-          `INSERT INTO rrm_details (scholar_id, rrm_date, status, satisfaction) VALUES ?`,
-          [rrmValues]
-        );
+        // Insert RRM details
+        const rrmDetailsArray = JSON.parse(formData.rrmDetails || '[]'); // Parse the RRM details JSON
+
+        const rrmDetails = rrmDetailsArray.map((rrm, index) => {
+          // Find the uploaded file for the current RRM detail
+          const file = files['rrmDetailsFile'] && files['rrmDetailsFile'][index]
+            ? files['rrmDetailsFile'][index].filename // Get the filename if the file exists
+            : null;
+          console.log(file);
+          return [
+            scholarId,            // ID of the scholar
+            rrm.date,             // Date of RRM (from formData)
+            rrm.status,           // Status of RRM (from formData)
+            rrm.satisfaction,     // Satisfaction level (from formData)
+            file                  // Uploaded file or null if not provided
+          ];
+        });
+
+        // Check if there are any RRM details to insert
+        if (rrmDetails.length > 0) {
+          try {
+            // Insert the RRM details into the database
+            await db.query(
+              `INSERT INTO rrm_details (scholar_id, rrm_date, status, satisfaction, file) VALUES ?`,
+              [rrmDetails] // Insert the array of RRM details
+            );
+            console.log('RRM details inserted successfully.');
+          } catch (error) {
+            console.error('Error inserting RRM details:', error);
+            throw error; // Roll back the transaction if there's an error
+          }
+        }
 
         // Insert publications
-        const publicationValues = JSON.parse(formData.publications).map(pub => [
+        const publications = JSON.parse(formData.publications || '[]').map(pub => [
           scholarId, pub.title, pub.authors, pub.journalConference, pub.freePaid, pub.impactFactor
         ]);
 
-        await db.query(
-          `INSERT INTO publications (
-            scholar_id, title, authors, journal_conference, free_paid, impact_factor
-          ) VALUES ?`,
-          [publicationValues]
-        );
+        if (publications.length > 0) {
+          await db.query(
+            `INSERT INTO publications (
+              scholar_id, title, authors, journal_conference, free_paid, impact_factor
+            ) VALUES ?`,
+            [publications]
+          );
+        }
 
-        // Commit transaction
-        await db.commit();
-
+        await db.commit(); // Commit transaction
         res.status(200).json({ message: 'Form submitted successfully' });
       } catch (error) {
-        // Rollback transaction in case of error
-        await db.rollback();
+        await db.rollback(); // Rollback transaction in case of error
         console.error('Error inserting data:', error);
         res.status(500).json({ error: 'Error submitting form' });
       }
     });
-    // API endpoint to get all submissions
-// API endpoint to get all submissions with file URLs
-app.get('/api/get-submissions', async (req, res) => {
-  try {
-    // Base URL for file links (adjust as per your production environment)
-    const fileBaseUrl = `https://registerapi.jntugv.edu.in/phdapplications/`;
 
-    // Query to get all scholar submissions with related data (courses, rrm details, publications)
-    const [submissions] = await db.query(`
-      SELECT 
-        s.id AS scholarId, s.scholarName, s.dateOfBirth, s.branch, s.rollNumber, 
-        s.scholarMobile, s.scholarEmail, s.supervisorName, s.supervisorMobile, s.supervisorEmail, 
-        s.coSupervisorName, s.coSupervisorMobile, s.coSupervisorEmail, s.titleOfResearch, s.areaOfResearch, 
-        CONCAT('${fileBaseUrl}', s.progressFile) AS progressFile,
-        CONCAT('${fileBaseUrl}', s.rrmApplicationFile) AS rrmApplicationFile,
-        s.created_at,
-        JSON_ARRAYAGG(JSON_OBJECT(
-          'courseType', c.course_type, 
-          'courseName', c.course_name, 
-          'year', c.year
-        )) AS courses,
-        JSON_ARRAYAGG(JSON_OBJECT(
-          'rrmDate', r.rrm_date, 
-          'status', r.status, 
-          'satisfaction', r.satisfaction
-        )) AS rrmDetails,
-        JSON_ARRAYAGG(JSON_OBJECT(
-          'publicationTitle', p.title, 
-          'authors', p.authors, 
-          'journalConference', p.journal_conference, 
-          'freePaid', p.free_paid, 
-          'impactFactor', p.impact_factor
-        )) AS publications
-      FROM scholars s
-      LEFT JOIN courses c ON s.id = c.scholar_id
-      LEFT JOIN rrm_details r ON s.id = r.scholar_id
-      LEFT JOIN publications p ON s.id = p.scholar_id
-      GROUP BY s.id
-    `);
+    // API to retrieve submissions
+    app.get('/api/get-submissions', async (req, res) => {
+      try {
+        const fileBaseUrl = `http://localhost:9999/phdapplications/`; // Base URL for file links
 
-    // Send the submissions data as a JSON response
-    res.status(200).json(submissions);
-  } catch (error) {
-    console.error('Error retrieving submissions:', error);
-    res.status(500).json({ error: 'Error retrieving submissions' });
-  }
-});
-app.get('/phdapplications/:filename', (req, res) => {
-  const { filename } = req.params;
-  const filePath = path.join(__dirname, 'uploads', 'phdapplications', filename);
+        const [submissions] = await db.query(`
+          SELECT 
+            s.id AS scholarId, 
+            s.scholarName, 
+            s.dateOfBirth, 
+            s.branch, 
+            s.rollNumber, 
+            s.scholarMobile, 
+            s.scholarEmail, 
+            s.supervisorName, 
+            s.supervisorMobile, 
+            s.supervisorEmail, 
+            s.coSupervisorName, 
+            s.coSupervisorMobile, 
+            s.coSupervisorEmail, 
+            s.titleOfResearch, 
+            s.areaOfResearch, 
+            CONCAT('${fileBaseUrl}', s.progressFile) AS progressFile, 
+            CONCAT('${fileBaseUrl}', s.rrmApplicationFile) AS rrmApplicationFile, 
+            s.created_at AS submissionDate,
+            
+            (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+              'course_type', c.course_type,
+              'course_name', c.course_name,
+              'year', c.year
+            )) FROM courses c WHERE c.scholar_id = s.id) AS courses,
+            
+            (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+              'rrm_date', r.rrm_date,
+              'status', r.status,
+              'satisfaction', r.satisfaction,
+              'file', CONCAT('${fileBaseUrl}', r.file)
+            )) FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
 
-  // Check if the file exists
-  fs.access(filePath, fs.constants.F_OK, (err) => {
-    if (err) {
-      return res.status(404).json({ error: 'File not found' });
-    }
+            (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+              'title', p.title,
+              'authors', p.authors,
+              'journal_conference', p.journal_conference,
+              'free_paid', p.free_paid,
+              'impact_factor', p.impact_factor
+            )) FROM publications p WHERE p.scholar_id = s.id) AS publications
 
-    // Send the file if it exists
-    res.sendFile(filePath);
-  });
-});
+          FROM scholars s;
+        `);
 
-
-
-    // Start the server
-    app.listen(port, () => {
-      console.log(`Server is running on port ${port}`);
+        res.json(submissions);
+      } catch (error) {
+        console.error('Error fetching submissions:', error);
+        res.status(500).json({ error: 'Error fetching submissions' });
+      }
     });
 
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
   } catch (error) {
-    console.error('Error initializing app:', error);
+    console.error('Error initializing the app:', error);
   }
 }
 
-// Run the application
 initializeApp();
