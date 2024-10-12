@@ -2,9 +2,10 @@ const express = require('express');
 const { initializeDatabase } = require('./config/db');
 const formRoutes = require('./routes/formRoutes');
 const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
-const PORT = 9999;
+const PORT = process.env.PORT;
 
 // Initialize database and create tables
 initializeDatabase();
@@ -14,7 +15,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration
 const allowedOrigins = [
-  'http://localhost:3010', // Adjusted: Removed '.com'
+  'http://localhost:3010',
   'https://register.jntugv.edu.in'
 ];
 

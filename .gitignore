@@ -1,2 +1,4 @@
 /phdapplications/
 /uploads/
+/nodemodules
+.env
