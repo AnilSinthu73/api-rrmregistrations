@@ -6,7 +6,7 @@ const dbConfig = {
   password: process.env.dbPassword,
   multipleStatements: true
 };
-
+console.log
 // SQL for creating database and tables
 const createDatabaseAndTables = `
 CREATE DATABASE IF NOT EXISTS drdregistrations;
