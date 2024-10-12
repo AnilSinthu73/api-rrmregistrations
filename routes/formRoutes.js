@@ -20,8 +20,7 @@ router.post('/submit-form', upload.fields([
     await db.beginTransaction();
     const formData = req.body;
     const files = req.files;
-    console.log(formData);
-    console.log(files);
+    
 
     // Insert Scholar Details
     const [scholarResult] = await db.query(`
@@ -55,7 +54,6 @@ router.post('/submit-form', upload.fields([
     }
 
     // Handling RRM Details and Files
-    console.log(formData.rrmDetails);
     let rrmDetailsArray = [];
 
     if (Array.isArray(formData.rrmDetails)) {
@@ -78,8 +76,6 @@ router.post('/submit-form', upload.fields([
       files['rrmDetailsFile'] && files['rrmDetailsFile'][index] ? files['rrmDetailsFile'][index].filename : null // Mapping files correctly
     ]);
 
-    console.log('Received rrmDetails:', rrmDetailsArray);
-    console.log('Mapped RRM Details:', rrmDetails);
 
     if (rrmDetails.length > 0) {
       await db.query(`INSERT INTO rrm_details (scholar_id, rrm_date, status, satisfaction, file) VALUES ?`, [rrmDetails]);
