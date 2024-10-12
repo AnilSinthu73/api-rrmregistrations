@@ -50,5 +50,5 @@ app.use('/api', formRoutes);
 app.use('/uploads', express.static('uploads'));
 
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on ${PORT}`);
 });
