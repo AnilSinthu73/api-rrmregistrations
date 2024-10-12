@@ -1,4 +1,10 @@
+
 /phdapplications/
 /uploads/
 /nodemodules
 .env
+
+./phdapplications
+./uploads
+.env
+
