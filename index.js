@@ -15,8 +15,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration
 const allowedOrigins = [
-  'http://localhost:3010',
-  'https://register.jntugv.edu.in'
+  'http://localhost:3011',
+  'https://rrmregisteration.jntugv.edu.in'
 ];
 
 const corsOptions = {
