@@ -11,30 +11,50 @@ const ensureArray = (data) => Array.isArray(data) ? data : [data];
 
 // Submit form data
 router.post('/submit-form', upload.fields([
+  { name: 'scholarImage', maxCount: 1 },
   { name: 'progressFile', maxCount: 1 },
   { name: 'rrmApplicationFile', maxCount: 1 },
   { name: 'rrmDetailsFile', maxCount: 10 } // Ensure up to 10 RRM files
 ]), async (req, res) => {
+  let db;
   try {
-    const db = await getConnection();
+    db = await getConnection();
     await db.beginTransaction();
     const formData = req.body;
     const files = req.files;
-    
+    console.log(formData);
+    console.log(files);
 
     // Insert Scholar Details
-    const [scholarResult] = await db.query(`
-      INSERT INTO scholars (
-        scholarName, dateOfBirth, branch, rollNumber, scholarMobile, scholarEmail,
-        supervisorName, supervisorMobile, supervisorEmail, coSupervisorName, coSupervisorMobile, coSupervisorEmail,
-        titleOfResearch, areaOfResearch, progressFile, rrmApplicationFile
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    `, [
-      formData.scholarName, formData.dateOfBirth, formData.branch, formData.rollNumber, formData.scholarMobile,
-      formData.scholarEmail, formData.supervisorName, formData.supervisorMobile, formData.supervisorEmail,
-      formData.coSupervisorName, formData.coSupervisorMobile, formData.coSupervisorEmail, formData.titleOfResearch,
-      formData.areaOfResearch, files['progressFile'][0].filename, files['rrmApplicationFile'][0].filename
-    ]);
+    const [scholarResult] = await db.query(
+      `
+        INSERT INTO scholars (
+          scholarName, dateOfBirth, branch, rollNumber, scholarMobile, scholarEmail,
+          supervisorName, supervisorMobile, supervisorEmail, coSupervisorName, coSupervisorMobile, coSupervisorEmail,
+          titleOfResearch, areaOfResearch, progressFile, rrmApplicationFile, scholarImage
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      `,
+      [
+        formData.scholarName,
+        formData.dateOfBirth,
+        formData.branch,
+        formData.rollNumber,
+        formData.scholarMobile,
+        formData.scholarEmail,
+        formData.supervisorName,
+        formData.supervisorMobile,
+        formData.supervisorEmail,
+        formData.coSupervisorName,
+        formData.coSupervisorMobile,
+        formData.coSupervisorEmail,
+        formData.titleOfResearch,
+        formData.areaOfResearch,
+        files['progressFile'] ? files['progressFile'][0].filename : '',
+        files['rrmApplicationFile'] ? files['rrmApplicationFile'][0].filename : '',
+        files['scholarImage'] ? files['scholarImage'][0].filename : '' // Correctly handling scholarImage
+      ]
+    );
+    
 
     const scholarId = scholarResult.insertId;
 
@@ -46,7 +66,7 @@ router.post('/submit-form', upload.fields([
     const courseValues = [
       ...auditCourses.map(course => [scholarId, 'Audit', course.courseName, course.year]),
       ...creditCourses.map(course => [scholarId, 'Credit', course.courseName, course.year]),
-      ...prePhDSubjects.map((course, index) => [scholarId, `PrePhD ${index + 1}`, course.courseName, course.year])
+      ...prePhDSubjects.map((course, index) => [scholarId, `PrePhD ${index + 1}`, course.courseName, course.year]),
     ];
 
     if (courseValues.length > 0) {
@@ -73,9 +93,8 @@ router.post('/submit-form', upload.fields([
       rrm.date || null,
       rrm.status || null,
       rrm.satisfaction || null,
-      files['rrmDetailsFile'] && files['rrmDetailsFile'][index] ? files['rrmDetailsFile'][index].filename : null // Mapping files correctly
+      files['rrmDetailsFile'] && files['rrmDetailsFile'][index] ? files['rrmDetailsFile'][index].filename : null, // Mapping files correctly
     ]);
-
 
     if (rrmDetails.length > 0) {
       await db.query(`INSERT INTO rrm_details (scholar_id, rrm_date, status, satisfaction, file) VALUES ?`, [rrmDetails]);
@@ -88,19 +107,21 @@ router.post('/submit-form', upload.fields([
       pub.authors,
       pub.journalConference,
       pub.freePaid,
-      pub.impactFactor
+      pub.impactFactor,
     ]);
 
     if (publications.length > 0) {
       await db.query(`INSERT INTO publications (scholar_id, title, authors, journal_conference, free_paid, impact_factor) VALUES ?`, [publications]);
     }
-    
+
     await db.commit();
     res.status(200).json({ message: 'Form submitted successfully' });
   } catch (error) {
     console.error('Error submitting form:', error);
-    await db.rollback(); // Rollback in case of error
+    if (db) await db.rollback(); // Rollback only if db is defined
     res.status(500).json({ error: 'Error submitting form' });
+  } finally {
+    if (db) await db.end(); // Close the connection
   }
 });
 
@@ -120,7 +141,6 @@ router.get('/phdapplications/:filename', (req, res) => {
 // API Route for fetching submissions
 router.get('/get-submissions', async (req, res) => {
   try {
-    
     const DOMAIN = `${process.env.apiIP}/api/phdapplications/`;
     const db = await getConnection();
     const [submissions] = await db.query(`
@@ -140,6 +160,7 @@ router.get('/get-submissions', async (req, res) => {
         s.coSupervisorEmail, 
         s.titleOfResearch, 
         s.areaOfResearch, 
+        CONCAT('${DOMAIN}', s.scholarImage) AS scholarImage, 
         CONCAT('${DOMAIN}', s.progressFile) AS progressFile, 
         CONCAT('${DOMAIN}', s.rrmApplicationFile) AS rrmApplicationFile, 
         DATE_FORMAT(s.created_at, '%d/%m/%Y') AS created_at,

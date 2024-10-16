@@ -3,7 +3,8 @@ const dotenv = require('dotenv').config();
 const dbConfig = {
   host: 'localhost',
   user: 'root',
-  password: process.env.dbPassword,
+  // password: process.env.dbPassword,
+  password: 'Anil@73',
   multipleStatements: true
 };
 console.log
@@ -15,6 +16,7 @@ USE drdregistrations;
 CREATE TABLE IF NOT EXISTS scholars (
   id INT AUTO_INCREMENT PRIMARY KEY,
   scholarName VARCHAR(255) NOT NULL,
+  scholarImage VARCHAR (255) NOT NULL,
   dateOfBirth DATE NOT NULL,
   branch VARCHAR(255) NOT NULL,
   rollNumber VARCHAR(50) NOT NULL,
@@ -32,6 +34,10 @@ CREATE TABLE IF NOT EXISTS scholars (
   rrmApplicationFile VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE scholars 
+ADD COLUMN scholarImage VARCHAR(255) NOT NULL;
+
 
 CREATE TABLE IF NOT EXISTS courses (
   id INT AUTO_INCREMENT PRIMARY KEY,
