@@ -3,8 +3,7 @@ const dotenv = require('dotenv').config();
 const dbConfig = {
   host: 'localhost',
   user: 'root',
-  // password: process.env.dbPassword,
-  password: 'Anil@73',
+  password: process.env.dbPassword,
   multipleStatements: true
 };
 console.log
