@@ -22,20 +22,18 @@ router.post('/submit-form', upload.fields([
     await db.beginTransaction();
     const formData = req.body;
     const files = req.files;
-    console.log(formData);
-    console.log(files);
-
     // Insert Scholar Details
     const [scholarResult] = await db.query(
       `
         INSERT INTO scholars (
-          scholarName, dateOfBirth, branch, rollNumber, scholarMobile, scholarEmail,
+          scholarName, scholarImage, dateOfBirth, branch, rollNumber, scholarMobile, scholarEmail,
           supervisorName, supervisorMobile, supervisorEmail, coSupervisorName, coSupervisorMobile, coSupervisorEmail,
-          titleOfResearch, areaOfResearch, progressFile, rrmApplicationFile, scholarImage
+          titleOfResearch, areaOfResearch, progressFile, rrmApplicationFile
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `,
       [
         formData.scholarName,
+        files['scholarImage'] ? files['scholarImage'][0].filename : '',
         formData.dateOfBirth,
         formData.branch,
         formData.rollNumber,
@@ -50,8 +48,7 @@ router.post('/submit-form', upload.fields([
         formData.titleOfResearch,
         formData.areaOfResearch,
         files['progressFile'] ? files['progressFile'][0].filename : '',
-        files['rrmApplicationFile'] ? files['rrmApplicationFile'][0].filename : '',
-        files['scholarImage'] ? files['scholarImage'][0].filename : '' // Correctly handling scholarImage
+        files['rrmApplicationFile'] ? files['rrmApplicationFile'][0].filename : ''
       ]
     );
     
@@ -146,7 +143,8 @@ router.get('/get-submissions', async (req, res) => {
     const [submissions] = await db.query(`
       SELECT 
         s.id AS scholarId, 
-        s.scholarName, 
+        s.scholarName,
+        CONCAT('${DOMAIN}', s.scholarImage) AS scholarImage,
         DATE_FORMAT(s.dateOfBirth, '%d/%m/%Y') AS dateOfBirth, 
         s.branch, 
         s.rollNumber, 
@@ -159,8 +157,7 @@ router.get('/get-submissions', async (req, res) => {
         s.coSupervisorMobile, 
         s.coSupervisorEmail, 
         s.titleOfResearch, 
-        s.areaOfResearch, 
-        CONCAT('${DOMAIN}', s.scholarImage) AS scholarImage, 
+        s.areaOfResearch,  
         CONCAT('${DOMAIN}', s.progressFile) AS progressFile, 
         CONCAT('${DOMAIN}', s.rrmApplicationFile) AS rrmApplicationFile, 
         DATE_FORMAT(s.created_at, '%d/%m/%Y') AS created_at,
