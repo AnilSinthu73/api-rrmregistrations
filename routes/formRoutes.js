@@ -61,9 +61,9 @@ router.post('/submit-form', upload.fields([
     const prePhDSubjects = ensureArray(JSON.parse(formData.prePhDSubjects || '[]'));
 
     const courseValues = [
-      ...auditCourses.map(course => [scholarId, 'Audit', course.courseName, course.year]),
-      ...creditCourses.map(course => [scholarId, 'Credit', course.courseName, course.year]),
-      ...prePhDSubjects.map((course, index) => [scholarId, `PrePhD ${index + 1}`, course.courseName, course.year]),
+      ...auditCourses.filter(course => course.courseName && course.year).map(course => [scholarId, 'Audit', course.courseName, course.year]),
+      ...creditCourses.filter(course => course.courseName && course.year).map(course => [scholarId, 'Credit', course.courseName, course.year]),
+      ...prePhDSubjects.filter(course => course.courseName && course.year).map((course, index) => [scholarId, `PrePhD ${index + 1}`, course.courseName, course.year]),
     ];
 
     if (courseValues.length > 0) {
@@ -85,30 +85,52 @@ router.post('/submit-form', upload.fields([
       console.warn('formData.rrmDetails is not a valid array or string:', formData.rrmDetails);
     }
 
-    const rrmDetails = rrmDetailsArray.map((rrm, index) => [
-      scholarId,
-      rrm.date || null,
-      rrm.status || null,
-      rrm.satisfaction || null,
-      files['rrmDetailsFile'] && files['rrmDetailsFile'][index] ? files['rrmDetailsFile'][index].filename : null, // Mapping files correctly
-    ]);
+    const rrmDetails = rrmDetailsArray
+      .filter(rrm => rrm.date && rrm.status && rrm.satisfaction)
+      .map((rrm, index) => {
+        const rrmDetail = [
+          scholarId,
+          rrm.date,
+          rrm.status,
+          rrm.satisfaction
+        ];
+        if (files['rrmDetailsFile'] && files['rrmDetailsFile'][index]) {
+          rrmDetail.push(files['rrmDetailsFile'][index].filename);
+        }
+        return rrmDetail;
+      });
 
     if (rrmDetails.length > 0) {
-      await db.query(`INSERT INTO rrm_details (scholar_id, rrm_date, status, satisfaction, file) VALUES ?`, [rrmDetails]);
+      const columns = ['scholar_id', 'rrm_date', 'status', 'satisfaction'];
+      if (rrmDetails[0].length > 4) {
+        columns.push('file');
+      }
+      await db.query(`INSERT INTO rrm_details (${columns.join(', ')}) VALUES ?`, [rrmDetails]);
     }
 
     // Handling Publications
-    const publications = ensureArray(JSON.parse(formData.publications || '[]')).map(pub => [
-      scholarId,
-      pub.title,
-      pub.authors,
-      pub.journalConference,
-      pub.freePaid,
-      pub.impactFactor,
-    ]);
+    const publications = ensureArray(JSON.parse(formData.publications || '[]'))
+      .filter(pub => pub.title && pub.authors && pub.journalConference && pub.freePaid)
+      .map(pub => {
+        const publication = [
+          scholarId,
+          pub.title,
+          pub.authors,
+          pub.journalConference,
+          pub.freePaid
+        ];
+        if (pub.impactFactor) {
+          publication.push(pub.impactFactor);
+        }
+        return publication;
+      });
 
     if (publications.length > 0) {
-      await db.query(`INSERT INTO publications (scholar_id, title, authors, journal_conference, free_paid, impact_factor) VALUES ?`, [publications]);
+      const columns = ['scholar_id', 'title', 'authors', 'journal_conference', 'free_paid'];
+      if (publications[0].length > 5) {
+        columns.push('impact_factor');
+      }
+      await db.query(`INSERT INTO publications (${columns.join(', ')}) VALUES ?`, [publications]);
     }
 
     await db.commit();
@@ -144,28 +166,28 @@ router.get('/get-submissions', async (req, res) => {
       SELECT 
         s.id AS scholarId, 
         s.scholarName,
-        CONCAT('${DOMAIN}', s.scholarImage) AS scholarImage,
-        DATE_FORMAT(s.dateOfBirth, '%d/%m/%Y') AS dateOfBirth, 
+        CONCAT('${DOMAIN}', IFNULL(s.scholarImage, '')) AS scholarImage,
+        DATE_FORMAT(s.dateOfBirth, '%d/%m/%Y') AS dateOfBirth,
         s.branch, 
         s.rollNumber, 
         s.scholarMobile, 
         s.scholarEmail, 
         s.supervisorName, 
-        s.supervisorMobile, 
-        s.supervisorEmail, 
-        s.coSupervisorName, 
-        s.coSupervisorMobile, 
-        s.coSupervisorEmail, 
-        s.titleOfResearch, 
-        s.areaOfResearch,  
-        CONCAT('${DOMAIN}', s.progressFile) AS progressFile, 
-        CONCAT('${DOMAIN}', s.rrmApplicationFile) AS rrmApplicationFile, 
-        DATE_FORMAT(s.created_at, '%d/%m/%Y') AS created_at,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('course_type', c.course_type, 'course_name', c.course_name, 'year', c.year)) 
+        IFNULL(s.supervisorMobile, '') AS supervisorMobile, 
+        IFNULL(s.supervisorEmail, '') AS supervisorEmail, 
+        IFNULL(s.coSupervisorName, '') AS coSupervisorName, 
+        IFNULL(s.coSupervisorMobile, '') AS coSupervisorMobile, 
+        IFNULL(s.coSupervisorEmail, '') AS coSupervisorEmail, 
+        IFNULL(s.titleOfResearch, '') AS titleOfResearch, 
+        IFNULL(s.areaOfResearch, '') AS areaOfResearch,  
+        CONCAT('${DOMAIN}', IFNULL(s.progressFile, '')) AS progressFile, 
+        CONCAT('${DOMAIN}', IFNULL(s.rrmApplicationFile, '')) AS rrmApplicationFile, 
+        DATE_FORMAT(s.created_at, '%d/%m/%Y') AS createdAt,
+        (SELECT JSON_ARRAYAGG(JSON_OBJECT('course_type', IFNULL(c.course_type, ''), 'course_name', IFNULL(c.course_name, ''), 'year', IFNULL(c.year, ''))) 
           FROM courses c WHERE c.scholar_id = s.id) AS courses,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', DATE_FORMAT(r.rrm_date, '%d/%m/%Y'), 'status', r.status, 'satisfaction', r.satisfaction, 'file', CONCAT('${DOMAIN}', r.file)) 
-          ) FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('title', p.title, 'authors', p.authors, 'journal_conference', p.journal_conference, 'free_paid', p.free_paid, 'impact_factor', p.impact_factor)) 
+        (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', IFNULL(DATE_FORMAT(r.rrm_date, '%d/%m/%Y'), ''), 'status', IFNULL(r.status, ''), 'satisfaction', IFNULL(r.satisfaction, ''), 'file', CONCAT('${DOMAIN}', IFNULL(r.file, '')))) 
+          FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
+        (SELECT JSON_ARRAYAGG(JSON_OBJECT('title', IFNULL(p.title, ''), 'authors', IFNULL(p.authors, ''), 'journal_conference', IFNULL(p.journal_conference, ''), 'free_paid', IFNULL(p.free_paid, ''), 'impact_factor', IFNULL(p.impact_factor, ''))) 
           FROM publications p WHERE p.scholar_id = s.id) AS publications
       FROM scholars s;
     `);
