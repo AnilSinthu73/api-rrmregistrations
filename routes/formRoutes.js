@@ -189,12 +189,7 @@ router.get('/get-submissions', async (req, res) => {
         FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
     (SELECT JSON_ARRAYAGG(JSON_OBJECT('title', IFNULL(p.title, ''), 'authors', IFNULL(p.authors, ''), 'journal_conference', IFNULL(p.journal_conference, ''), 'free_paid', IFNULL(p.free_paid, ''), 'impact_factor', IFNULL(p.impact_factor, ''))) 
         FROM publications p WHERE p.scholar_id = s.id) AS publications
-FROM scholars s
-GROUP BY s.rollNumber, s.id, s.scholarName, s.scholarImage, s.dateOfBirth, s.branch, 
-         s.scholarMobile, s.scholarEmail, s.supervisorName, s.supervisorMobile, 
-         s.supervisorEmail, s.coSupervisorName, s.coSupervisorMobile, s.coSupervisorEmail, 
-         s.titleOfResearch, s.areaOfResearch, s.progressFile, s.rrmApplicationFile, s.created_at;
-    `);
+FROM scholars s    `);
 
     res.status(200).json(submissions);
   } catch (error) {
