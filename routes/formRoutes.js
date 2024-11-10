@@ -164,32 +164,34 @@ router.get('/get-submissions', async (req, res) => {
     const db = await getConnection();
     const [submissions] = await db.query(`
       SELECT 
-        s.id AS scholarId, 
-        s.scholarName,
-        CONCAT('${DOMAIN}', IFNULL(s.scholarImage, '')) AS scholarImage,
-        DATE_FORMAT(s.dateOfBirth, '%d/%m/%Y') AS dateOfBirth,
-        s.branch, 
-        s.rollNumber, 
-        s.scholarMobile, 
-        s.scholarEmail, 
-        s.supervisorName, 
-        IFNULL(s.supervisorMobile, '') AS supervisorMobile, 
-        IFNULL(s.supervisorEmail, '') AS supervisorEmail, 
-        IFNULL(s.coSupervisorName, '') AS coSupervisorName, 
-        IFNULL(s.coSupervisorMobile, '') AS coSupervisorMobile, 
-        IFNULL(s.coSupervisorEmail, '') AS coSupervisorEmail, 
-        IFNULL(s.titleOfResearch, '') AS titleOfResearch, 
-        IFNULL(s.areaOfResearch, '') AS areaOfResearch,  
-        CONCAT('${DOMAIN}', IFNULL(s.progressFile, '')) AS progressFile, 
-        CONCAT('${DOMAIN}', IFNULL(s.rrmApplicationFile, '')) AS rrmApplicationFile, 
-        DATE_FORMAT(s.created_at, '%d/%m/%Y') AS createdAt,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('course_type', IFNULL(c.course_type, ''), 'course_name', IFNULL(c.course_name, ''), 'year', IFNULL(c.year, ''))) 
-          FROM courses c WHERE c.scholar_id = s.id) AS courses,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', IFNULL(DATE_FORMAT(r.rrm_date, '%d/%m/%Y'), ''), 'status', IFNULL(r.status, ''), 'satisfaction', IFNULL(r.satisfaction, ''), 'file', CONCAT('${DOMAIN}', IFNULL(r.file, '')))) 
-          FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('title', IFNULL(p.title, ''), 'authors', IFNULL(p.authors, ''), 'journal_conference', IFNULL(p.journal_conference, ''), 'free_paid', IFNULL(p.free_paid, ''), 'impact_factor', IFNULL(p.impact_factor, ''))) 
-          FROM publications p WHERE p.scholar_id = s.id) AS publications
-      FROM scholars s;
+    s.id AS scholarId, 
+    s.scholarName,
+    CONCAT('${DOMAIN}', IFNULL(s.scholarImage, '')) AS scholarImage,
+    DATE_FORMAT(s.dateOfBirth, '%d/%m/%Y') AS dateOfBirth,
+    s.branch, 
+    s.rollNumber, 
+    s.scholarMobile, 
+    s.scholarEmail, 
+    s.supervisorName, 
+    IFNULL(s.supervisorMobile, '') AS supervisorMobile, 
+    IFNULL(s.supervisorEmail, '') AS supervisorEmail, 
+    IFNULL(s.coSupervisorName, '') AS coSupervisorName, 
+    IFNULL(s.coSupervisorMobile, '') AS coSupervisorMobile, 
+    IFNULL(s.coSupervisorEmail, '') AS coSupervisorEmail, 
+    IFNULL(s.titleOfResearch, '') AS titleOfResearch, 
+    IFNULL(s.areaOfResearch, '') AS areaOfResearch,  
+    CONCAT('${DOMAIN}', IFNULL(s.progressFile, '')) AS progressFile, 
+    CONCAT('${DOMAIN}', IFNULL(s.rrmApplicationFile, '')) AS rrmApplicationFile, 
+    DATE_FORMAT(s.created_at, '%d/%m/%Y') AS createdAt,
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT('course_type', IFNULL(c.course_type, ''), 'course_name', IFNULL(c.course_name, ''), 'year', IFNULL(c.year, ''))) 
+        FROM courses c WHERE c.scholar_id = s.id) AS courses,
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', IFNULL(DATE_FORMAT(r.rrm_date, '%d/%m/%Y'), ''), 'status', IFNULL(r.status, ''), 'satisfaction', IFNULL(r.satisfaction, ''), 'file', CONCAT('${DOMAIN}', IFNULL(r.file, '')))) 
+        FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT('title', IFNULL(p.title, ''), 'authors', IFNULL(p.authors, ''), 'journal_conference', IFNULL(p.journal_conference, ''), 'free_paid', IFNULL(p.free_paid, ''), 'impact_factor', IFNULL(p.impact_factor, ''))) 
+        FROM publications p WHERE p.scholar_id = s.id) AS publications
+FROM scholars s
+GROUP BY s.rollNumber;
+
     `);
 
     res.status(200).json(submissions);
