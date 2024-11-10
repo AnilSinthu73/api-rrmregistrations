@@ -166,7 +166,7 @@ router.get('/get-submissions', async (req, res) => {
       SELECT 
     s.id AS scholarId, 
     s.scholarName,
-    CONCAT('${DOMAIN}', IFNULL(s.scholarImage, '')) AS scholarImage,
+    CONCAT('https://registerapi.jntugv.edu.in/api/phdapplications/', IFNULL(s.scholarImage, '')) AS scholarImage,
     DATE_FORMAT(s.dateOfBirth, '%d/%m/%Y') AS dateOfBirth,
     s.branch, 
     s.rollNumber, 
@@ -180,18 +180,20 @@ router.get('/get-submissions', async (req, res) => {
     IFNULL(s.coSupervisorEmail, '') AS coSupervisorEmail, 
     IFNULL(s.titleOfResearch, '') AS titleOfResearch, 
     IFNULL(s.areaOfResearch, '') AS areaOfResearch,  
-    CONCAT('${DOMAIN}', IFNULL(s.progressFile, '')) AS progressFile, 
-    CONCAT('${DOMAIN}', IFNULL(s.rrmApplicationFile, '')) AS rrmApplicationFile, 
+    CONCAT('https://registerapi.jntugv.edu.in/api/phdapplications/', IFNULL(s.progressFile, '')) AS progressFile, 
+    CONCAT('https://registerapi.jntugv.edu.in/api/phdapplications/', IFNULL(s.rrmApplicationFile, '')) AS rrmApplicationFile, 
     DATE_FORMAT(s.created_at, '%d/%m/%Y') AS createdAt,
     (SELECT JSON_ARRAYAGG(JSON_OBJECT('course_type', IFNULL(c.course_type, ''), 'course_name', IFNULL(c.course_name, ''), 'year', IFNULL(c.year, ''))) 
         FROM courses c WHERE c.scholar_id = s.id) AS courses,
-    (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', IFNULL(DATE_FORMAT(r.rrm_date, '%d/%m/%Y'), ''), 'status', IFNULL(r.status, ''), 'satisfaction', IFNULL(r.satisfaction, ''), 'file', CONCAT('${DOMAIN}', IFNULL(r.file, '')))) 
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', IFNULL(DATE_FORMAT(r.rrm_date, '%d/%m/%Y'), ''), 'status', IFNULL(r.status, ''), 'satisfaction', IFNULL(r.satisfaction, ''), 'file', CONCAT('https://registerapi.jntugv.edu.in/api/phdapplications/', IFNULL(r.file, '')))) 
         FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
     (SELECT JSON_ARRAYAGG(JSON_OBJECT('title', IFNULL(p.title, ''), 'authors', IFNULL(p.authors, ''), 'journal_conference', IFNULL(p.journal_conference, ''), 'free_paid', IFNULL(p.free_paid, ''), 'impact_factor', IFNULL(p.impact_factor, ''))) 
         FROM publications p WHERE p.scholar_id = s.id) AS publications
 FROM scholars s
-GROUP BY s.rollNumber;
-
+GROUP BY s.rollNumber, s.id, s.scholarName, s.scholarImage, s.dateOfBirth, s.branch, 
+         s.scholarMobile, s.scholarEmail, s.supervisorName, s.supervisorMobile, 
+         s.supervisorEmail, s.coSupervisorName, s.coSupervisorMobile, s.coSupervisorEmail, 
+         s.titleOfResearch, s.areaOfResearch, s.progressFile, s.rrmApplicationFile, s.created_at;
     `);
 
     res.status(200).json(submissions);
