@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 const dotenv = require('dotenv').config();
 const dbConfig = {
   host: 'localhost',
-  user: 'dbadmin',
+  user: 'root',
   password: process.env.dbpassword,
   multipleStatements: true
 };
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS scholars (
   scholarImage VARCHAR (255) NOT NULL,
   dateOfBirth DATE NOT NULL,
   branch VARCHAR(255) NOT NULL,
-  rollNumber VARCHAR(50) NOT NULL PRIMARY KEY,
+  rollNumber VARCHAR(50) UNIQUE NOT NULL ,
   scholarMobile VARCHAR(15) NOT NULL,
   scholarEmail VARCHAR(255) NOT NULL,
   supervisorName VARCHAR(255) NOT NULL,
