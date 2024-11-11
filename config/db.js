@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 const dotenv = require('dotenv').config();
 const dbConfig = {
   host: 'localhost',
-  user: 'root',
+  user: 'dbadmin',
   password: process.env.dbpassword,
   multipleStatements: true
 };
