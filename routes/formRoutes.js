@@ -74,21 +74,8 @@ router.post('/submit-form', upload.fields([
     if (courseValues.length > 0) {
       await db.query(`INSERT INTO courses (scholar_id, course_type, course_name, year) VALUES ?`, [courseValues]);
     }
-
     // Handling RRM Details and Files
-    let rrmDetailsArray = [];
-
-    if (Array.isArray(formData.rrmDetails)) {
-      rrmDetailsArray = formData.rrmDetails;
-    } else if (typeof formData.rrmDetails === 'string') {
-      try {
-        rrmDetailsArray = ensureArray(JSON.parse(formData.rrmDetails));
-      } catch (error) {
-        console.error('Error parsing rrmDetails:', error);
-      }
-    } else {
-      console.warn('formData.rrmDetails is not a valid array or string:', formData.rrmDetails);
-    }
+    let rrmDetailsArray = ensureArray(formData.rrmDetails);
 
     const rrmDetails = rrmDetailsArray
       .filter(rrm => rrm.date && rrm.status && rrm.satisfaction)
@@ -104,12 +91,8 @@ router.post('/submit-form', upload.fields([
         }
         return rrmDetail;
       });
-
     if (rrmDetails.length > 0) {
-      const columns = ['scholar_id', 'rrm_date', 'status', 'satisfaction'];
-      if (rrmDetails[0].length > 4) {
-        columns.push('file');
-      }
+      const columns = ['scholar_id', 'rrm_date', 'status', 'satisfaction', 'file'];
       await db.query(`INSERT INTO rrm_details (${columns.join(', ')}) VALUES ?`, [rrmDetails]);
     }
 
@@ -131,10 +114,7 @@ router.post('/submit-form', upload.fields([
       });
 
     if (publications.length > 0) {
-      const columns = ['scholar_id', 'title', 'authors', 'journal_conference', 'free_paid'];
-      if (publications[0].length > 5) {
-        columns.push('impact_factor');
-      }
+      const columns = ['scholar_id', 'title', 'authors', 'journal_conference', 'free_paid', 'impact_factor'];
       await db.query(`INSERT INTO publications (${columns.join(', ')}) VALUES ?`, [publications]);
     }
 
