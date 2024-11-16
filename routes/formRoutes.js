@@ -181,7 +181,6 @@ router.get('/get-submissions', async (req, res) => {
      FROM publications p 
      WHERE p.scholar_id = s.id) AS publications
 FROM scholars s `);
-
     res.status(200).json(submissions);
   } catch (error) {
     console.error('Error fetching submissions:', error);
