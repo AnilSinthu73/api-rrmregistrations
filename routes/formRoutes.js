@@ -11,30 +11,52 @@ const ensureArray = (data) => Array.isArray(data) ? data : [data];
 
 // Submit form data
 router.post('/submit-form', upload.fields([
+  { name: 'scholarImage', maxCount: 1 },
   { name: 'progressFile', maxCount: 1 },
   { name: 'rrmApplicationFile', maxCount: 1 },
   { name: 'rrmDetailsFile', maxCount: 10 } // Ensure up to 10 RRM files
 ]), async (req, res) => {
+  let db;
   try {
-    const db = await getConnection();
+    db = await getConnection();
     await db.beginTransaction();
     const formData = req.body;
     const files = req.files;
-    
-
+    // Check if the scholar already exists to avoid multiple submissions
+    const [existingScholar] = await db.query(`SELECT * FROM scholars WHERE rollNumber = ?`, [formData.rollNumber]);
+    if (existingScholar.length > 0) {
+      return res.status(409).json({ error: 'Scholar already exists' });
+    }
     // Insert Scholar Details
-    const [scholarResult] = await db.query(`
-      INSERT INTO scholars (
-        scholarName, dateOfBirth, branch, rollNumber, scholarMobile, scholarEmail,
-        supervisorName, supervisorMobile, supervisorEmail, coSupervisorName, coSupervisorMobile, coSupervisorEmail,
-        titleOfResearch, areaOfResearch, progressFile, rrmApplicationFile
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    `, [
-      formData.scholarName, formData.dateOfBirth, formData.branch, formData.rollNumber, formData.scholarMobile,
-      formData.scholarEmail, formData.supervisorName, formData.supervisorMobile, formData.supervisorEmail,
-      formData.coSupervisorName, formData.coSupervisorMobile, formData.coSupervisorEmail, formData.titleOfResearch,
-      formData.areaOfResearch, files['progressFile'][0].filename, files['rrmApplicationFile'][0].filename
-    ]);
+    const [scholarResult] = await db.query(
+      `
+        INSERT INTO scholars (
+          scholarName, scholarImage, dateOfBirth, branch, rollNumber, scholarMobile, scholarEmail,
+          supervisorName, supervisorMobile, supervisorEmail, coSupervisorName, coSupervisorMobile, coSupervisorEmail,
+          titleOfResearch, areaOfResearch, progressFile, rrmApplicationFile
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      `,
+      [
+        formData.scholarName,
+        files['scholarImage'] ? files['scholarImage'][0].filename : '',
+        formData.dateOfBirth,
+        formData.branch,
+        formData.rollNumber,
+        formData.scholarMobile,
+        formData.scholarEmail,
+        formData.supervisorName,
+        formData.supervisorMobile,
+        formData.supervisorEmail,
+        formData.coSupervisorName,
+        formData.coSupervisorMobile,
+        formData.coSupervisorEmail,
+        formData.titleOfResearch,
+        formData.areaOfResearch,
+        files['progressFile'] ? files['progressFile'][0].filename : '',
+        files['rrmApplicationFile'] ? files['rrmApplicationFile'][0].filename : ''
+      ]
+    );
+    
 
     const scholarId = scholarResult.insertId;
 
@@ -44,9 +66,9 @@ router.post('/submit-form', upload.fields([
     const prePhDSubjects = ensureArray(JSON.parse(formData.prePhDSubjects || '[]'));
 
     const courseValues = [
-      ...auditCourses.map(course => [scholarId, 'Audit', course.courseName, course.year]),
-      ...creditCourses.map(course => [scholarId, 'Credit', course.courseName, course.year]),
-      ...prePhDSubjects.map((course, index) => [scholarId, `PrePhD ${index + 1}`, course.courseName, course.year])
+      ...auditCourses.filter(course => course.courseName && course.year).map(course => [scholarId, 'Audit', course.courseName, course.year]),
+      ...creditCourses.filter(course => course.courseName && course.year).map(course => [scholarId, 'Credit', course.courseName, course.year]),
+      ...prePhDSubjects.filter(course => course.courseName && course.year).map((course, index) => [scholarId, `PrePhD ${index + 1}`, course.courseName, course.year]),
     ];
 
     if (courseValues.length > 0) {
@@ -68,39 +90,62 @@ router.post('/submit-form', upload.fields([
       console.warn('formData.rrmDetails is not a valid array or string:', formData.rrmDetails);
     }
 
-    const rrmDetails = rrmDetailsArray.map((rrm, index) => [
-      scholarId,
-      rrm.date || null,
-      rrm.status || null,
-      rrm.satisfaction || null,
-      files['rrmDetailsFile'] && files['rrmDetailsFile'][index] ? files['rrmDetailsFile'][index].filename : null // Mapping files correctly
-    ]);
-
+    const rrmDetails = rrmDetailsArray
+      .filter(rrm => rrm.date && rrm.status && rrm.satisfaction)
+      .map((rrm, index) => {
+        const rrmDetail = [
+          scholarId,
+          rrm.date,
+          rrm.status,
+          rrm.satisfaction
+        ];
+        if (files['rrmDetailsFile'] && files['rrmDetailsFile'][index]) {
+          rrmDetail.push(files['rrmDetailsFile'][index].filename);
+        }
+        return rrmDetail;
+      });
 
     if (rrmDetails.length > 0) {
-      await db.query(`INSERT INTO rrm_details (scholar_id, rrm_date, status, satisfaction, file) VALUES ?`, [rrmDetails]);
+      const columns = ['scholar_id', 'rrm_date', 'status', 'satisfaction'];
+      if (rrmDetails[0].length > 4) {
+        columns.push('file');
+      }
+      await db.query(`INSERT INTO rrm_details (${columns.join(', ')}) VALUES ?`, [rrmDetails]);
     }
 
     // Handling Publications
-    const publications = ensureArray(JSON.parse(formData.publications || '[]')).map(pub => [
-      scholarId,
-      pub.title,
-      pub.authors,
-      pub.journalConference,
-      pub.freePaid,
-      pub.impactFactor
-    ]);
+    const publications = ensureArray(JSON.parse(formData.publications || '[]'))
+      .filter(pub => pub.title && pub.authors && pub.journalConference && pub.freePaid)
+      .map(pub => {
+        const publication = [
+          scholarId,
+          pub.title,
+          pub.authors,
+          pub.journalConference,
+          pub.freePaid
+        ];
+        if (pub.impactFactor) {
+          publication.push(pub.impactFactor);
+        }
+        return publication;
+      });
 
     if (publications.length > 0) {
-      await db.query(`INSERT INTO publications (scholar_id, title, authors, journal_conference, free_paid, impact_factor) VALUES ?`, [publications]);
+      const columns = ['scholar_id', 'title', 'authors', 'journal_conference', 'free_paid'];
+      if (publications[0].length > 5) {
+        columns.push('impact_factor');
+      }
+      await db.query(`INSERT INTO publications (${columns.join(', ')}) VALUES ?`, [publications]);
     }
-    
+
     await db.commit();
     res.status(200).json({ message: 'Form submitted successfully' });
   } catch (error) {
     console.error('Error submitting form:', error);
-    await db.rollback(); // Rollback in case of error
+    if (db) await db.rollback(); // Rollback only if db is defined
     res.status(500).json({ error: 'Error submitting form' });
+  } finally {
+    if (db) await db.end(); // Close the connection
   }
 });
 
@@ -120,38 +165,66 @@ router.get('/phdapplications/:filename', (req, res) => {
 // API Route for fetching submissions
 router.get('/get-submissions', async (req, res) => {
   try {
-    
     const DOMAIN = `${process.env.apiIP}/api/phdapplications/`;
     const db = await getConnection();
     const [submissions] = await db.query(`
       SELECT 
-        s.id AS scholarId, 
-        s.scholarName, 
-        DATE_FORMAT(s.dateOfBirth, '%d/%m/%Y') AS dateOfBirth, 
-        s.branch, 
-        s.rollNumber, 
-        s.scholarMobile, 
-        s.scholarEmail, 
-        s.supervisorName, 
-        s.supervisorMobile, 
-        s.supervisorEmail, 
-        s.coSupervisorName, 
-        s.coSupervisorMobile, 
-        s.coSupervisorEmail, 
-        s.titleOfResearch, 
-        s.areaOfResearch, 
-        CONCAT('${DOMAIN}', s.progressFile) AS progressFile, 
-        CONCAT('${DOMAIN}', s.rrmApplicationFile) AS rrmApplicationFile, 
-        DATE_FORMAT(s.created_at, '%d/%m/%Y') AS created_at,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('course_type', c.course_type, 'course_name', c.course_name, 'year', c.year)) 
-          FROM courses c WHERE c.scholar_id = s.id) AS courses,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('rrm_date', DATE_FORMAT(r.rrm_date, '%d/%m/%Y'), 'status', r.status, 'satisfaction', r.satisfaction, 'file', CONCAT('${DOMAIN}', r.file)) 
-          ) FROM rrm_details r WHERE r.scholar_id = s.id) AS rrmDetails,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('title', p.title, 'authors', p.authors, 'journal_conference', p.journal_conference, 'free_paid', p.free_paid, 'impact_factor', p.impact_factor)) 
-          FROM publications p WHERE p.scholar_id = s.id) AS publications
-      FROM scholars s;
-    `);
-
+    s.id AS scholarId, 
+    s.scholarName,
+    CASE 
+        WHEN s.scholarImage IS NOT NULL THEN CONCAT('${DOMAIN}', s.scholarImage) 
+        ELSE '' 
+    END AS scholarImage,
+    DATE_FORMAT(s.dateOfBirth, '%d/%m/%Y') AS dateOfBirth,
+    s.branch, 
+    s.rollNumber, 
+    s.scholarMobile, 
+    s.scholarEmail, 
+    s.supervisorName, 
+    IFNULL(s.supervisorMobile, '') AS supervisorMobile, 
+    IFNULL(s.supervisorEmail, '') AS supervisorEmail, 
+    IFNULL(s.coSupervisorName, '') AS coSupervisorName, 
+    IFNULL(s.coSupervisorMobile, '') AS coSupervisorMobile, 
+    IFNULL(s.coSupervisorEmail, '') AS coSupervisorEmail, 
+    IFNULL(s.titleOfResearch, '') AS titleOfResearch, 
+    IFNULL(s.areaOfResearch, '') AS areaOfResearch,  
+    CASE 
+        WHEN s.progressFile IS NOT NULL THEN CONCAT('${DOMAIN}', s.progressFile) 
+        ELSE '' 
+    END AS progressFile,
+    CASE 
+        WHEN s.rrmApplicationFile IS NOT NULL THEN CONCAT('${DOMAIN}', s.rrmApplicationFile) 
+        ELSE '' 
+    END AS rrmApplicationFile,
+    DATE_FORMAT(s.created_at, '%d/%m/%Y') AS createdAt,
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+        'course_type', IFNULL(c.course_type, ''), 
+        'course_name', IFNULL(c.course_name, ''), 
+        'year', IFNULL(c.year, '')
+    )) 
+     FROM courses c 
+     WHERE c.scholar_id = s.id) AS courses,
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+        'rrm_date', IFNULL(DATE_FORMAT(r.rrm_date, '%d/%m/%Y'), ''), 
+        'status', IFNULL(r.status, ''), 
+        'satisfaction', IFNULL(r.satisfaction, ''), 
+        'file', CASE 
+                   WHEN r.file IS NOT NULL THEN CONCAT('${DOMAIN}', r.file) 
+                   ELSE '' 
+                END
+    )) 
+     FROM rrm_details r 
+     WHERE r.scholar_id = s.id) AS rrmDetails,
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+        'title', IFNULL(p.title, ''), 
+        'authors', IFNULL(p.authors, ''), 
+        'journal_conference', IFNULL(p.journal_conference, ''), 
+        'free_paid', IFNULL(p.free_paid, ''), 
+        'impact_factor', IFNULL(p.impact_factor, '')
+    )) 
+     FROM publications p 
+     WHERE p.scholar_id = s.id) AS publications
+FROM scholars s `);
     res.status(200).json(submissions);
   } catch (error) {
     console.error('Error fetching submissions:', error);
