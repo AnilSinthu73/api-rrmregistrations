@@ -22,6 +22,8 @@ router.post('/submit-form', upload.fields([
     await db.beginTransaction();
     const formData = req.body;
     const files = req.files;
+    console.log(formData);
+    console.log(files);
     // Check if the scholar already exists to avoid multiple submissions
     const [existingScholar] = await db.query(`SELECT * FROM scholars WHERE rollNumber = ?`, [formData.rollNumber]);
     if (existingScholar.length > 0) {
@@ -34,7 +36,7 @@ router.post('/submit-form', upload.fields([
           scholarName, scholarImage, dateOfBirth, branch, rollNumber, scholarMobile, scholarEmail,
           supervisorName, supervisorMobile, supervisorEmail, coSupervisorName, coSupervisorMobile, coSupervisorEmail,
           titleOfResearch, areaOfResearch, progressFile, rrmApplicationFile
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         formData.scholarName,
@@ -56,7 +58,7 @@ router.post('/submit-form', upload.fields([
         files['rrmApplicationFile'] ? files['rrmApplicationFile'][0].filename : ''
       ]
     );
-    
+
 
     const scholarId = scholarResult.insertId;
 
@@ -70,7 +72,6 @@ router.post('/submit-form', upload.fields([
       ...creditCourses.filter(course => course.courseName && course.year).map(course => [scholarId, 'Credit', course.courseName, course.year]),
       ...prePhDSubjects.filter(course => course.courseName && course.year).map((course, index) => [scholarId, `PrePhD ${index + 1}`, course.courseName, course.year]),
     ];
-
     if (courseValues.length > 0) {
       await db.query(`INSERT INTO courses (scholar_id, course_type, course_name, year) VALUES ?`, [courseValues]);
     }
