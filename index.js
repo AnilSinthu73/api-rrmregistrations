@@ -1,10 +1,11 @@
 const express = require('express');
-const { initializeDatabase } = require('../config/db');
-const formRoutes = require('../routes/formRoutes');
+const { initializeDatabase } = require('./config/db');
+const formRoutes = require('./routes/formRoutes');
 const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+const PORT = process.env.PORT;
 
 // Initialize database and create tables
 initializeDatabase();
@@ -17,12 +18,15 @@ const allowedOrigins = [
   'http://localhost:3011',
   'http://localhost:3000',
   'https://register.jntugv.edu.in',
-  'https://rrmregistration.jntugv.edu.in',
+  'https://rrmregistration.jntugv.edu.in'
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // Allow requests with no origin
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Check if the origin is in the allowed origins list
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true); // Allow the request
     } else {
@@ -30,13 +34,15 @@ const corsOptions = {
     }
   },
   methods: ['GET', 'POST', 'OPTIONS'], // Specify allowed methods
+  //credentials: true, // If you want to allow cookies to be sent
 };
 
 // Use CORS middleware with options
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Handle preflight requests
 
-// Define routes
+// Handle preflight requests
+app.options('*', cors(corsOptions)); // Enable pre-flight across-the-board
+
 app.get('/', (req, res) => {
   res.send('Welcome to the PhD Scholar Registration System');
 });
@@ -46,5 +52,7 @@ app.use('/api', formRoutes);
 // Serve static files from 'uploads' folder
 app.use('/uploads', express.static('uploads'));
 
-// Export the app for Vercel
+app.listen(PORT, () => {
+  console.log(`Server is running on ${PORT}`);
+});
 module.exports = app;
