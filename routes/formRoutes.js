@@ -146,7 +146,7 @@ router.get('/phdapplications/:filename', (req, res) => {
 // API Route for fetching submissions
 router.get('/get-submissions', async (req, res) => {
   try {
-    const DOMAIN = `${process.env.apiIP}/api/phdapplications/`;
+    const DOMAIN = `${process.env.API}/api/phdapplications/`;
     const db = await getConnection();
     const [submissions] = await db.query(`
       SELECT 
