@@ -19,7 +19,6 @@ const allowedOrigins = [
   'http://localhost:3000',
   'https://register.jntugv.edu.in',
   'https://rrmregistration.jntugv.edu.in'
-  'https://api-rrmregistartions.vercel.app'
 ];
 
 const corsOptions = {
