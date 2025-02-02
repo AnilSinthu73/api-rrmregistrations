@@ -1,11 +1,13 @@
 const mysql = require('mysql2/promise');
 const dotenv = require('dotenv').config();
 const dbConfig = {
-  host: 'localhost',
-  user: 'dbadmin',
-  password: process.env.dbpassword,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME, // Add database name
   multipleStatements: true
 };
+
 // SQL for creating database and tables
 const createDatabaseAndTables = `
 CREATE DATABASE IF NOT EXISTS drdregistrations;
